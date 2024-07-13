@@ -10,9 +10,22 @@ import java.io.IOException;
 import java.util.*;
 import java.util.jar.JarFile;
 
+/**
+ * SymbolAnalyzer 分析类文件中的符号信息，如字段、方法和局部变量，
+ * 并将它们存储在 SymbolFrame 中以便进一步的混淆处理。
+ */
 public class SymbolAnalyzer {
+    /**
+     * JAR 文件路径，用于读取类文件。
+     */
     private static final String jarFile = "";
 
+    /**
+     * 主方法，用于启动符号分析流程。
+     *
+     * @param args 命令行参数
+     * @throws IOException 如果无法读取 JAR 文件
+     */
     public static void main(String[] args) throws IOException {
         Set<ClassNode> candidateClasses = new HashSet<>();
         ASMParser asmParser = new ASMParser(null);
@@ -23,6 +36,12 @@ public class SymbolAnalyzer {
         }
     }
 
+    /**
+     * 分析给定的 ClassNode，提取符号信息并构建 SymbolFrame。
+     *
+     * @param classNode 要分析的类节点
+     * @return 包含符号信息的 SymbolFrame
+     */
     public SymbolFrame analyze(ClassNode classNode) {
         SymbolFrame frame = new SymbolFrame();
         String className = classNode.name;
@@ -39,6 +58,13 @@ public class SymbolAnalyzer {
         return frame;
     }
 
+    /**
+     * 分析给定的方法节点，提取方法相关的符号信息。
+     *
+     * @param methodNode 要分析的方法节点
+     * @param className  方法所属的类名
+     * @return 包含方法符号信息的 SymbolFrame
+     */
     public SymbolFrame analyzeMethod(MethodNode methodNode, String className) {
         List<LocalVariableNode> localVariables = new ArrayList<>();
         if (methodNode.localVariables != null) {
@@ -71,7 +97,8 @@ public class SymbolAnalyzer {
                 }
                 if (vi.getOpcode() == Opcodes.ASTORE) {
                     LocalVariableNode var = localVariables.get(vi.var);
-                    frame.addVarDef(new Symbol(var.name, var.desc, var.desc, getLine(insn))); //TODO: var def may be incomplete
+                    frame.addVarDef(new Symbol(var.name, var.desc, var.desc, getLine(insn))); // TODO: var def may be
+                                                                                              // incomplete
                 } else if (vi.getOpcode() == Opcodes.ALOAD) {
                     LocalVariableNode var = localVariables.get(vi.var);
                     if (var.name.equals("this")) {
@@ -82,15 +109,23 @@ public class SymbolAnalyzer {
             }
             if (insn instanceof InvokeDynamicInsnNode) {
                 InvokeDynamicInsnNode di = (InvokeDynamicInsnNode) insn;
-                Arrays.stream(di.bsmArgs).filter(arg -> arg instanceof Handle).map(arg -> (Handle) arg).forEach(handle -> {
-                    frame.addMethodUse(new Symbol(handle.getName(), handle.getOwner(), handle.getDesc(), getLine(insn)));
-                });
+                Arrays.stream(di.bsmArgs).filter(arg -> arg instanceof Handle).map(arg -> (Handle) arg)
+                        .forEach(handle -> {
+                            frame.addMethodUse(
+                                    new Symbol(handle.getName(), handle.getOwner(), handle.getDesc(), getLine(insn)));
+                        });
             }
             // TODO: Handle other types of instructions
         }
         return frame;
     }
 
+    /**
+     * 获取指令的行号，用于调试和错误报告。
+     *
+     * @param insn 指令节点
+     * @return 指令所在的行号，如果没有则返回 -1
+     */
     public int getLine(AbstractInsnNode insn) {
         while (insn != null && !(insn instanceof LineNumberNode)) {
             insn = insn.getPrevious();

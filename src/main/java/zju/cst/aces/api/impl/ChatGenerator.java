@@ -1,14 +1,16 @@
 package zju.cst.aces.api.impl;
 
+import okhttp3.Response;
 import zju.cst.aces.api.Generator;
 import zju.cst.aces.api.config.Config;
-import zju.cst.aces.dto.ChatMessage;
 import zju.cst.aces.dto.ChatResponse;
+import zju.cst.aces.dto.Message;
 import zju.cst.aces.runner.AbstractRunner;
 import zju.cst.aces.util.AskGPT;
 import zju.cst.aces.util.CodeExtractor;
 
 import java.util.List;
+import zju.cst.aces.api.Generator;
 
 public class ChatGenerator implements Generator {
 
@@ -19,12 +21,12 @@ public class ChatGenerator implements Generator {
     }
 
     @Override
-    public String generate(List<ChatMessage> chatMessages) {
-        return extractCodeByResponse(chat(config, chatMessages));
+    public String generate(List<Message> messages) {
+        return extractCodeByResponse(chat(config, messages));
     }
 
-    public static ChatResponse chat(Config config, List<ChatMessage> chatMessages) {
-        ChatResponse response = new AskGPT(config).askChatGPT(chatMessages);
+    public static ChatResponse chat(Config config, List<Message> messages) {
+        ChatResponse response = new AskGPT(config).askChatGPT(messages);
         if (response == null) {
             throw new RuntimeException("Response is null, failed to get response.");
         }

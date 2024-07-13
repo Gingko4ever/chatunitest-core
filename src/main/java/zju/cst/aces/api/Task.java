@@ -1,5 +1,7 @@
 package zju.cst.aces.api;
 
+import zju.cst.aces.api.Project;
+import zju.cst.aces.api.Runner;
 import zju.cst.aces.api.config.Config;
 import zju.cst.aces.dto.ClassInfo;
 import zju.cst.aces.dto.MethodInfo;
@@ -15,22 +17,45 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.*;
-import java.util.concurrent.atomic.AtomicInteger;
-
+import zju.cst.aces.api.Logger;
 import zju.cst.aces.util.Counter;
 
+/**
+ * code Task 类负责执行与测试用例生成相关的任务。
+ * 它使用配置对象、日志记录器和运行器来管理任务的执行。
+ */
 public class Task {
-
+    /**
+     * 配置对象，包含任务执行所需的配置信息。
+     */
     Config config;
+    /**
+     * 日志记录器，用于记录任务执行过程中的信息、警告和错误。
+     */
     Logger log;
+    /**
+     * 运行器接口，用于执行测试用例的生成和运行。
+     */
     Runner runner;
 
+    /**
+     * 构造函数，初始化任务所需的配置、日志记录器和运行器。
+     *
+     * @param config 配置对象
+     * @param runner 运行器接口实现
+     */
     public Task(Config config, Runner runner) {
         this.config = config;
-        this.log = config.getLogger();
+        this.log = config.getLog();
         this.runner = runner;
     }
 
+    /**
+     * 启动针对特定类和方法的测试用例生成任务。
+     *
+     * @param className  类名
+     * @param methodName 方法名或ID
+     */
     public void startMethodTask(String className, String methodName) {
         try {
             checkTargetFolder(config.getProject());
@@ -39,14 +64,12 @@ public class Task {
             return;
         }
         if (config.getProject().getPackaging().equals("pom")) {
-            log.info(String.format("\n==========================\n[%s] Skip pom-packaging ...",config.pluginSign));
+            log.info("\n==========================\n[ChatUniTest] Skip pom-packaging ...");
             return;
         }
-
-        Phase phase = new Phase(config);
-        phase.new Preparation().execute();
-
-        log.info(String.format("\n==========================\n[%s] Generating tests for class: < ",config.pluginSign) + className
+        ProjectParser parser = new ProjectParser(config);
+        parser.parse();
+        log.info("\n==========================\n[ChatUniTest] Generating tests for class: < " + className
                 + "> method: < " + methodName + " > ...");
 
         try {
@@ -67,7 +90,8 @@ public class Task {
                 try {
                     this.runner.runMethod(fullClassName, methodInfo);
                 } catch (Exception e) {
-                    log.error("Error when generating tests for " + methodName + " in " + className + " " + config.getProject().getArtifactId() + "\n" + e.getMessage());
+                    log.error("Error when generating tests for " + methodName + " in " + className + " "
+                            + config.getProject().getArtifactId() + "\n" + e.getMessage());
                 }
             } else {
                 for (String mSig : classInfo.methodSigs.keySet()) {
@@ -79,20 +103,27 @@ public class Task {
                         try {
                             this.runner.runMethod(fullClassName, methodInfo);
                         } catch (Exception e) {
-                            log.error("Error when generating tests for " + methodName + " in " + className + " " + config.getProject().getArtifactId() + "\n" + e.getMessage());
+                            log.error("Error when generating tests for " + methodName + " in " + className + " "
+                                    + config.getProject().getArtifactId() + "\n" + e.getMessage());
                         }
                     }
                 }
             }
 
         } catch (IOException e) {
-            log.warn("Method not found: " + methodName + " in " + className + " " + config.getProject().getArtifactId());
+            log.warn(
+                    "Method not found: " + methodName + " in " + className + " " + config.getProject().getArtifactId());
             return;
         }
 
-        log.info(String.format("\n==========================\n[%s] Generation finished", config.pluginSign));
+        log.info("\n==========================\n[ChatUniTest] Generation finished");
     }
 
+    /**
+     * 启动针对特定类的测试用例生成任务，忽略方法级别的细节。
+     *
+     * @param className 类名
+     */
     public void startClassTask(String className) {
         try {
             checkTargetFolder(config.getProject());
@@ -101,66 +132,68 @@ public class Task {
             return;
         }
         if (config.getProject().getPackaging().equals("pom")) {
-            log.info(String.format("\n==========================\n[%s] Skip pom-packaging ...",config.pluginSign));
+            log.info("\n==========================\n[ChatUniTest] Skip pom-packaging ...");
             return;
         }
-        Phase phase = new Phase(config);
-        phase.new Preparation().execute();
-        log.info(String.format("\n==========================\n[%s] Generating tests for class < " + className + " > ...",config.pluginSign));
+        ProjectParser parser = new ProjectParser(config);
+        parser.parse();
+        log.info("\n==========================\n[ChatUniTest] Generating tests for class < " + className + " > ...");
         try {
             this.runner.runClass(getFullClassName(config, className));
         } catch (IOException e) {
             log.warn("Class not found: " + className + " in " + config.getProject().getArtifactId());
         }
-        log.info(String.format("\n==========================\n[%s] Generation finished",config.pluginSign));
+        log.info("\n==========================\n[ChatUniTest] Generation finished");
     }
 
+    /**
+     * 启动针对整个项目的测试用例生成任务。
+     */
     public void startProjectTask() {
         Project project = config.getProject();
         try {
             checkTargetFolder(project);
-        } catch (Exception e) {
+        } catch (RuntimeException e) {
             log.error(e.toString());
             return;
         }
         if (project.getPackaging().equals("pom")) {
-            log.info(String.format("\n==========================\n[%s] Skip pom-packaging ...",config.pluginSign));
+            log.info("\n==========================\n[ChatUniTest] Skip pom-packaging ...");
             return;
         }
-        Phase phase = new Phase(config);
-        phase.new Preparation().execute();
+        ProjectParser parser = new ProjectParser(config);
+        parser.parse();
         List<String> classPaths = ProjectParser.scanSourceDirectory(project);
-
-        try {
-            config.setJobCount(new AtomicInteger(Counter.countMethod(config.getTmpOutput())));
-        } catch (IOException e) {
-            log.error("Error when counting methods: " + e);
-        }
-
         if (config.isEnableMultithreading() == true) {
             projectJob(classPaths);
         } else {
             for (String classPath : classPaths) {
-                String className = classPath.substring(classPath.lastIndexOf(File.separator) + 1, classPath.lastIndexOf("."));
+                String className = classPath.substring(classPath.lastIndexOf(File.separator) + 1,
+                        classPath.lastIndexOf("."));
                 try {
                     String fullClassName = getFullClassName(config, className);
-                    log.info(String.format("\n==========================\n[%s] Generating tests for class < ",config.pluginSign) + className + " > ...");
+                    log.info("\n==========================\n[ChatUniTest] Generating tests for class < " + className
+                            + " > ...");
                     ClassInfo info = AbstractRunner.getClassInfo(config, fullClassName);
                     if (!Counter.filter(info)) {
-                        config.getLogger().info("Skip class: " + classPath);
+                        config.getLog().info("Skip class: " + classPath);
                         continue;
                     }
-
                     this.runner.runClass(fullClassName);
                 } catch (IOException e) {
-                    log.error(String.format("[%s] Generate tests for class ",config.pluginSign) + className + " failed: " + e);
+                    log.error("[ChatUniTest] Generate tests for class " + className + " failed: " + e);
                 }
             }
         }
 
-        log.info(String.format("\n==========================\n[%s] Generation finished",config.pluginSign));
+        log.info("\n==========================\n[ChatUniTest] Generation finished");
     }
 
+    /**
+     * 执行项目的并发测试用例生成任务。
+     *
+     * @param classPaths 类路径列表
+     */
     public void projectJob(List<String> classPaths) {
         ExecutorService executor = Executors.newFixedThreadPool(config.getClassThreads());
         List<Future<String>> futures = new ArrayList<>();
@@ -168,17 +201,19 @@ public class Task {
             Callable<String> callable = new Callable<String>() {
                 @Override
                 public String call() throws Exception {
-                    String className = classPath.substring(classPath.lastIndexOf(File.separator) + 1, classPath.lastIndexOf("."));
+                    String className = classPath.substring(classPath.lastIndexOf(File.separator) + 1,
+                            classPath.lastIndexOf("."));
                     try {
                         String fullClassName = getFullClassName(config, className);
-                        log.info(String.format("\n==========================\n[%s] Generating tests for class < ",config.pluginSign) + className + " > ...");
+                        log.info("\n==========================\n[ChatUniTest] Generating tests for class < " + className
+                                + " > ...");
                         ClassInfo info = AbstractRunner.getClassInfo(config, fullClassName);
                         if (!Counter.filter(info)) {
                             return "Skip class: " + classPath;
                         }
                         runner.runClass(fullClassName);
                     } catch (IOException e) {
-                        log.error(String.format("[%s] Generate tests for class ",config.pluginSign) + className + " failed: " + e);
+                        log.error("[ChatUniTest] Generate tests for class " + className + " failed: " + e);
                     }
                     return "Processed " + classPath;
                 }
@@ -205,15 +240,24 @@ public class Task {
         executor.shutdown();
     }
 
+    /**
+     * 获取类的全名，如果是简单名称则通过配置映射获取对应的完整名称。
+     *
+     * @param config 配置对象
+     * @param name   类的简单或完整名称
+     * @return 类的全名
+     * @throws IOException 若存在配置读取或映射解析错误
+     */
     public static String getFullClassName(Config config, String name) throws IOException {
         if (isFullName(name)) {
             return name;
         }
         Path classMapPath = config.getClassNameMapPath();
-        Map<String, List<String>> classMap = config.getGSON().fromJson(Files.readString(classMapPath, StandardCharsets.UTF_8), Map.class);
+        Map<String, List<String>> classMap = config.getGSON()
+                .fromJson(Files.readString(classMapPath, StandardCharsets.UTF_8), Map.class);
         if (classMap.containsKey(name)) {
             if (classMap.get(name).size() > 1) {
-                throw new RuntimeException((String.format("[%s] Multiple classes Named ",config.pluginSign)) + name + ": " + classMap.get(name)
+                throw new RuntimeException("[ChatUniTest] Multiple classes Named " + name + ": " + classMap.get(name)
                         + " Please use full qualified name!");
             }
             return classMap.get(name).get(0);
@@ -221,6 +265,12 @@ public class Task {
         return name;
     }
 
+    /**
+     * 判断提供的名称是否已经是一个完整的类名。
+     *
+     * @param name 类名
+     * @return 如果是完整类名返回 true，否则返回 false
+     */
     public static boolean isFullName(String name) {
         if (name.contains(".")) {
             return true;
@@ -229,8 +279,9 @@ public class Task {
     }
 
     /**
-     * Check if the classes is compiled
-     * @param project
+     * 检查项目是否已经编译。
+     *
+     * @param project 项目对象
      */
     public static void checkTargetFolder(Project project) {
         if (project.getPackaging().equals("pom")) {

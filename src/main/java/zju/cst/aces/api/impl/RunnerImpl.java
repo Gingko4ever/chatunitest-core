@@ -14,13 +14,29 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.file.Path;
 
+/**
+ * RunnerImpl 是 Runner 接口的实现类，负责根据配置启动类或方法级别的测试用例生成任务。
+ */
 public class RunnerImpl implements Runner {
+    /**
+     * 配置对象，用于控制和定制测试用例生成的行为。
+     */
     Config config;
 
+    /**
+     * 构造函数，初始化配置对象。
+     *
+     * @param config 配置对象
+     */
     public RunnerImpl(Config config) {
         this.config = config;
     }
 
+    /**
+     * 启动针对特定类的测试用例生成任务。
+     *
+     * @param fullClassName 类的全名
+     */
     public void runClass(String fullClassName) {
         try {
             new ClassRunner(config, fullClassName).start();
@@ -29,6 +45,12 @@ public class RunnerImpl implements Runner {
         }
     }
 
+    /**
+     * 启动针对特定类和方法的测试用例生成任务。
+     *
+     * @param fullClassName 类的全名
+     * @param methodInfo    方法信息
+     */
     public void runMethod(String fullClassName, MethodInfo methodInfo) {
         try {
             new MethodRunner(config, fullClassName, methodInfo).start();
@@ -36,6 +58,4 @@ public class RunnerImpl implements Runner {
             throw new RuntimeException(e);
         }
     }
-
-
 }
